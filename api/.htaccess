@@ -1,0 +1,14 @@
+<IfModule mod_headers.c>
+    SetEnvIf Origin "^http(s)?://(.+\.)?(localhost|127\.0\.0\.1)(:[0-9]+)?$" C_ORIGIN=$0
+    
+    # Always set these headers for matched origins
+    Header always set Access-Control-Allow-Origin %{C_ORIGIN}e env=C_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true"
+    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With"
+    
+    # Handle OPTIONS method
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ $1 [R=200,L]
+</IfModule>
