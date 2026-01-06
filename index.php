@@ -14,6 +14,7 @@ require_once 'CommentController.php';
 require_once 'UploadController.php';
 require_once 'ArchiveController.php';
 require_once 'NotificationController.php';
+require_once 'MailController.php';
 
 // Handle CORS
 handleCors();
@@ -63,6 +64,15 @@ if ($uri === '/api/auth/signup' && $method === 'POST') {
 } elseif ($uri === '/api/messages/delete' && $method === 'POST') {
     $controller = new MessageController();
     $controller->delete();
+} elseif ($uri === '/api/mail/messages' && $method === 'GET') {
+    $controller = new MailController();
+    $controller->getMessages();
+} elseif ($uri === '/api/mail/messages' && $method === 'POST') {
+    $controller = new MailController();
+    $controller->sendMessage();
+} elseif (preg_match('#^/api/mail/messages/(\d+)$#', $uri, $matches) && $method === 'PUT') {
+    $controller = new MailController();
+    $controller->updateMessage($matches[1]);
 } else {
     // 404
     http_response_code(404);

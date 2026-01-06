@@ -7,20 +7,33 @@ ini_set('post_max_size', '100M');
 ini_set('max_execution_time', 600);
 
 $uploadId = $_POST['upload_id'] ?? null;
-$chunkIndex = $_POST['chunk_index'] ?? null;
-$totalChunks = $_POST['total_chunks'] ?? null;
+$chunkIndex = isset($_POST['chunk_index']) ? (int)$_POST['chunk_index'] : null;
+$totalChunks = isset($_POST['total_chunks']) ? (int)$_POST['total_chunks'] : null;
 $fileName = $_POST['file_name'] ?? null;
 $file = $_FILES['chunk'] ?? null;
 
 if (!$uploadId || $chunkIndex === null || !$totalChunks || !$fileName || !$file) {
     http_response_code(400);
-    echo json_encode(['error' => 'Missing upload parameters']);
+    echo json_encode([
+        'error' => 'Missing upload parameters',
+        'debug' => [
+            'upload_id' => $uploadId,
+            'chunk_index' => $chunkIndex,
+            'total_chunks' => $totalChunks,
+            'file_name' => $fileName,
+            'file_received' => !!$file
+        ]
+    ]);
     exit;
 }
 
 $tempDir = __DIR__ . '/uploads/temp';
 if (!file_exists($tempDir)) {
-    mkdir($tempDir, 0777, true);
+    if (!mkdir($tempDir, 0777, true)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to create temp directory', 'path' => $tempDir]);
+        exit;
+    }
 }
 
 // Sanitize uploadId
@@ -30,25 +43,29 @@ $tempFilePath = $tempDir . '/' . $uploadId . '.part';
 $chunkData = file_get_contents($file['tmp_name']);
 if ($chunkData === false) {
      http_response_code(500);
-     echo json_encode(['error' => 'Failed to read chunk']);
+     echo json_encode(['error' => 'Failed to read chunk from ' . $file['tmp_name']]);
      exit;
 }
 
-$mode = ($chunkIndex == 0) ? 'wb' : 'ab';
+$mode = ($chunkIndex === 0) ? 'wb' : 'ab';
 $handle = fopen($tempFilePath, $mode);
 if (!$handle) {
     http_response_code(500);
-    echo json_encode(['error' => 'Could not open temp file']);
+    echo json_encode(['error' => 'Could not open temp file for writing', 'path' => $tempFilePath, 'mode' => $mode]);
     exit;
 }
 fwrite($handle, $chunkData);
 fclose($handle);
 
 // Check if complete
-if ($chunkIndex + 1 == $totalChunks) {
+if ($chunkIndex + 1 >= $totalChunks) {
     $finalDir = __DIR__ . '/uploads';
     if (!file_exists($finalDir)) {
-        mkdir($finalDir, 0777, true);
+        if (!mkdir($finalDir, 0777, true)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to create uploads directory', 'path' => $finalDir]);
+            exit;
+        }
     }
     
     $safeFileName = time() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
@@ -65,9 +82,18 @@ if ($chunkIndex + 1 == $totalChunks) {
         echo json_encode(['status' => 'done', 'media_url' => $mediaUrl, 'type' => $type]);
     } else {
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to rename finalized file']);
+        echo json_encode([
+            'error' => 'Failed to rename finalized file',
+            'from' => $tempFilePath,
+            'to' => $finalPath
+        ]);
     }
 } else {
-    echo json_encode(['status' => 'chunk_uploaded', 'percent' => round((($chunkIndex + 1) / $totalChunks) * 100)]);
+    echo json_encode([
+        'status' => 'chunk_uploaded', 
+        'percent' => round((($chunkIndex + 1) / $totalChunks) * 100),
+        'chunk_index' => $chunkIndex,
+        'total_chunks' => $totalChunks
+    ]);
 }
 ?>
