@@ -13,8 +13,34 @@ if(isset($data->email) && isset($data->password)) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && password_verify($password, $user['password'])) {
+            // Check if user is banned
+            if (isset($user['is_banned']) && $user['is_banned'] == 1) {
+                // Check timestamp
+                $is_fully_banned = true;
+                if (!empty($user['ban_expires_at'])) {
+                    $expires = strtotime($user['ban_expires_at']);
+                    if (time() > $expires) {
+                        // Auto-unban
+                        $upd = $conn->prepare("UPDATE users SET is_banned = 0, ban_expires_at = NULL WHERE id = ?");
+                        $upd->execute([$user['id']]);
+                        $is_fully_banned = false; // Proceed to login
+                    }
+                }
+                
+                if ($is_fully_banned) {
+                    $msg = "Votre compte a été banni.";
+                    if (!empty($user['ban_expires_at'])) {
+                        $msg .= " Le bannissement expire le " . $user['ban_expires_at'];
+                    } else {
+                        $msg .= " Bannissement permanent.";
+                    }
+                    echo json_encode(["status" => "error", "message" => $msg]);
+                    exit();
+                }
+            }
+
             echo json_encode([
-                "status" => "success", 
+                "status" => "success",
                 "message" => "Login successful", 
                 "user" => [
                     "id" => $user['id'],

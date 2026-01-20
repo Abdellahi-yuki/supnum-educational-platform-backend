@@ -21,7 +21,7 @@ if ($method === 'GET') {
     }
 
     try {
-        $sql = "SELECT DISTINCT m.*, u.username, u.email, u.first_name, u.last_name, u.profile_path,
+        $sql = "SELECT DISTINCT m.*, u.username, u.email, u.first_name, u.last_name, u.profile_path, u.role,
                 (CASE WHEN am.id IS NOT NULL THEN 1 ELSE 0 END) as is_archived,
                 r.content as reply_content, ru.username as reply_username
                 FROM community_messages m 
@@ -101,6 +101,7 @@ if ($method === 'GET') {
                 'username' => $msg['username'] ?? ($msg['first_name'] . ' ' . $msg['last_name']),
                 'email' => $msg['email'] ?? null,
                 'profile_path' => $msg['profile_path'],
+                'role' => $msg['role'],
                 'comments' => $commentsByMsg[$msg['id']] ?? [],
                 'is_archived' => (bool)$msg['is_archived'],
                 'reply_to_id' => $msg['reply_to_id'],
@@ -146,7 +147,7 @@ if ($method === 'GET') {
             }
         }
 
-        $userStmt = $conn->prepare("SELECT username, first_name, last_name, email, profile_path FROM users WHERE id = ?");
+        $userStmt = $conn->prepare("SELECT username, first_name, last_name, email, profile_path, role FROM users WHERE id = ?");
         $userStmt->execute([$userId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -158,7 +159,8 @@ if ($method === 'GET') {
                 'first_name' => 'Unknown',
                 'last_name' => '',
                 'email' => '',
-                'profile_path' => null
+                'profile_path' => null,
+                'role' => 'Etudiant'
             ];
         }
 
@@ -179,6 +181,7 @@ if ($method === 'GET') {
             'username' => $user['username'] ?? (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
             'email' => $user['email'] ?? '',
             'profile_path' => $user['profile_path'] ?? null,
+            'role' => $user['role'] ?? 'Etudiant',
             'comments' => [],
             'is_archived' => false,
             'reply_to_id' => $replyToId,
@@ -220,7 +223,7 @@ if ($method === 'GET') {
         $userStmt->execute([$userId]);
         $userRole = $userStmt->fetchColumn();
 
-        if ($msg['user_id'] != $userId && $userRole !== 'admin') {
+        if ($msg['user_id'] != $userId && $userRole !== 'admin' && $userRole !== 'Root') {
             http_response_code(403);
             echo json_encode(['error' => 'Unauthorized']);
             exit;

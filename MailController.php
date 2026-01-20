@@ -21,6 +21,16 @@ class MailController {
         exit;
     }
 
+    private function addRecipientToMail($userId, $messageId, $type) {
+        // Add to mail_recipients with type (to, cc, bcc)
+        $stmtRecip = $this->pdo->prepare("INSERT INTO mail_recipients (user_id, message_id, status) VALUES (?, ?, ?)");
+        $stmtRecip->execute([$userId, $messageId, $type]);
+
+        // Add to mail_labels for Recipient (Inbox)
+        $stmtLabel = $this->pdo->prepare("INSERT INTO mail_labels (user_id, message_id, is_read, is_starred, is_spam, is_trash, is_archived) VALUES (?, ?, 0, 0, 0, 0, 0)");
+        $stmtLabel->execute([$userId, $messageId]);
+    }
+
     public function getMessages() {
         $userId = isset($_GET['user_id']) ? intval($_GET['user_id']) : 3;
         $label = isset($_GET['label']) ? $_GET['label'] : 'inbox';
@@ -39,7 +49,8 @@ class MailController {
                         l.is_starred as isStarred,
                         l.is_spam,
                         l.is_trash,
-                        l.is_archived
+                        l.is_archived,
+                        u.role as sender_role
                     FROM mail_messages m
                     JOIN mail_labels l ON m.id = l.message_id
                     LEFT JOIN users u ON m.sender_id = u.id
@@ -66,7 +77,7 @@ class MailController {
 
             // Prepare recipient query once outside the loop
             $stmtRecip = $this->pdo->prepare("
-                SELECT r.status, u.username, u.email, u.id as user_id
+                SELECT r.status, u.username, u.email, u.id as user_id, u.role
                 FROM mail_recipients r
                 JOIN users u ON r.user_id = u.id
                 WHERE r.message_id = ?
@@ -95,7 +106,8 @@ class MailController {
                     $msg['recipients'][] = [
                         'name' => $r['username'],
                         'email' => $r['email'],
-                        'type' => $r['status']
+                        'type' => $r['status'],
+                        'role' => $r['role']
                     ];
                 }
             }
@@ -133,9 +145,18 @@ class MailController {
 
             foreach ($allEmails as $email) {
                 if (empty($email)) continue;
-                $stmtCheck = $this->pdo->prepare("SELECT id FROM users WHERE email = ?");
-                $stmtCheck->execute([$email]);
-                if (!$stmtCheck->fetch()) {
+                
+                // Check users
+                $stmtCheckUser = $this->pdo->prepare("SELECT id FROM users WHERE email = ?");
+                $stmtCheckUser->execute([$email]);
+                $userExists = $stmtCheckUser->fetch();
+
+                // Check mailing lists
+                $stmtCheckList = $this->pdo->prepare("SELECT id FROM mailing_lists WHERE alias = ?");
+                $stmtCheckList->execute([$email]);
+                $listExists = $stmtCheckList->fetch();
+
+                if (!$userExists && !$listExists) {
                     $this->sendJson(['error' => "$email does not exist"], 400);
                 }
             }
@@ -147,7 +168,7 @@ class MailController {
             $stmt->execute([$senderId, $data['subject'], $data['body'], $parentId]);
             $messageId = $this->pdo->lastInsertId();
 
-            // Helper to process recipients by type
+            // Helper to process recipients by type (Supports Mailing Lists expansion)
             $processRecipients = function($emails, $type) use ($messageId) {
                 if (is_string($emails)) {
                     $emails = array_filter(explode(',', $emails));
@@ -158,20 +179,29 @@ class MailController {
                     $email = trim($email);
                     if (empty($email)) continue;
 
-                    $stmtUser = $this->pdo->prepare("SELECT id FROM users WHERE email = ?");
-                    $stmtUser->execute([$email]);
-                    $user = $stmtUser->fetch();
+                    // 1. Check if this is a mailing list alias
+                    $stmtList = $this->pdo->prepare("SELECT id FROM mailing_lists WHERE alias = ?");
+                    $stmtList->execute([$email]);
+                    $list = $stmtList->fetch();
 
-                    if ($user) {
-                        $recipientId = $user['id'];
-                        
-                        // Add to mail_recipients with type (to, cc, bcc)
-                        $stmtRecip = $this->pdo->prepare("INSERT INTO mail_recipients (user_id, message_id, status) VALUES (?, ?, ?)");
-                        $stmtRecip->execute([$recipientId, $messageId, $type]);
+                    if ($list) {
+                        // Expand mailing list
+                        $stmtMembers = $this->pdo->prepare("SELECT user_id FROM mailing_list_members WHERE list_id = ?");
+                        $stmtMembers->execute([$list['id']]);
+                        $memberIds = $stmtMembers->fetchAll(PDO::FETCH_COLUMN);
 
-                        // Add to mail_labels for Recipient (Inbox)
-                        $stmtLabel = $this->pdo->prepare("INSERT INTO mail_labels (user_id, message_id, is_read, is_starred, is_spam, is_trash, is_archived) VALUES (?, ?, 0, 0, 0, 0, 0)");
-                        $stmtLabel->execute([$recipientId, $messageId]);
+                        foreach ($memberIds as $memberId) {
+                            $this->addRecipientToMail($memberId, $messageId, $type);
+                        }
+                    } else {
+                        // 2. Normal user recipient
+                        $stmtUser = $this->pdo->prepare("SELECT id FROM users WHERE email = ?");
+                        $stmtUser->execute([$email]);
+                        $user = $stmtUser->fetch();
+
+                        if ($user) {
+                            $this->addRecipientToMail($user['id'], $messageId, $type);
+                        }
                     }
                 }
             };

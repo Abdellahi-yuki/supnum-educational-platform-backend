@@ -34,9 +34,24 @@ if ($method === 'GET') {
                 'created_at' => $member['created_at'],
                 'message_count' => (int)$member['message_count'],
                 'last_activity' => $member['last_activity'],
-                'is_active' => (bool)$member['is_active']
+                'is_active' => (bool)$member['is_active'],
+                'is_mailing_list' => false
             ];
         }, $members);
+
+        // Include mailing lists only if requested (for Mail component)
+        if (isset($_GET['include_lists']) && $_GET['include_lists'] === 'true') {
+            $stmtLists = $conn->query("SELECT id, name, alias FROM mailing_lists");
+            $lists = $stmtLists->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($lists as $list) {
+                $result[] = [
+                    'id' => 'ml_' . $list['id'],
+                    'username' => $list['name'] . ' (LISTE)',
+                    'email' => $list['alias'],
+                    'is_mailing_list' => true
+                ];
+            }
+        }
         
         echo json_encode($result);
     } catch (PDOException $e) {
