@@ -51,18 +51,8 @@ if(isset($data->email) && isset($data->password)) {
                 ]
             ]);
         } else {
-            // Check if it's a pending account
-            $pend = $conn->prepare("SELECT email FROM pending_users WHERE email = ?");
-            $pend->execute([$email]);
-            if ($pend->rowCount() > 0) {
-                echo json_encode([
-                    "status" => "unverified", 
-                    "message" => "Votre compte attend la vérification du code.",
-                    "email" => $email
-                ]);
-            } else {
-                echo json_encode(["status" => "error", "message" => "Identifiants invalides ou compte inexistant."]);
-            }
+            // User not found or password incorrect
+            echo json_encode(["status" => "error", "message" => "Identifiants invalides ou compte inexistant."]);
         }
     } catch(PDOException $e) {
         echo json_encode(["status" => "error", "message" => $e->getMessage()]);

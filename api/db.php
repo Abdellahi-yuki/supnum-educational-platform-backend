@@ -1,10 +1,16 @@
 <?php
 // Start session for unverified registrations
+// Start session for unverified registrations
 session_start([
     'cookie_lifetime' => 0, // Session cookie expires when browser closes
     'cookie_httponly' => true,
     'cookie_samesite' => 'Lax'
 ]);
+
+// DEBUG MODE
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 
 // CORS configuration
