@@ -8,8 +8,11 @@ class MailController {
         $this->pdo = Database::getInstance()->getConnection();
     }
 
-    // Helper to get JSON input
-    private function getJsonInput() {
+    // Helper to get input (JSON or POST)
+    private function getInput() {
+        if (!empty($_POST)) {
+            return $_POST;
+        }
         return json_decode(file_get_contents('php://input'), true);
     }
 
@@ -110,6 +113,11 @@ class MailController {
                         'role' => $r['role']
                     ];
                 }
+
+                // Fetch attachments
+                $stmtAttachments = $this->pdo->prepare("SELECT * FROM mail_attachments WHERE message_id = ?");
+                $stmtAttachments->execute([$msg['id']]);
+                $msg['attachments'] = $stmtAttachments->fetchAll(PDO::FETCH_ASSOC);
             }
 
             $this->sendJson($messages);
@@ -120,7 +128,7 @@ class MailController {
     }
 
     public function sendMessage() {
-        $data = $this->getJsonInput();
+        $data = $this->getInput();
         $senderId = isset($data['sender_id']) ? intval($data['sender_id']) : 3;
         
         if (!isset($data['to']) || !isset($data['subject']) || !isset($data['body'])) {
@@ -214,6 +222,42 @@ class MailController {
             $stmtSenderLabel = $this->pdo->prepare("INSERT INTO mail_labels (user_id, message_id, is_read, is_starred, is_spam, is_trash, is_archived) VALUES (?, ?, 1, 0, 0, 0, 0)");
             $stmtSenderLabel->execute([$senderId, $messageId]);
 
+            // Handle Attachments
+            if (isset($_FILES['attachments'])) {
+                $uploadDir = __DIR__ . '/uploads/attachments/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+                $files = $_FILES['attachments'];
+                // Normalize file array structure
+                if (!is_array($files['name'])) {
+                    // Single file (shouldn't happen with multiple attribute but good for safety)
+                    $files = [
+                        'name' => [$files['name']],
+                        'type' => [$files['type']],
+                        'tmp_name' => [$files['tmp_name']],
+                        'error' => [$files['error']],
+                        'size' => [$files['size']]
+                    ];
+                }
+
+                $stmtAttachment = $this->pdo->prepare("INSERT INTO mail_attachments (file_name, file_type, file_size, file_path, message_id) VALUES (?, ?, ?, ?, ?)");
+
+                for ($i = 0; $i < count($files['name']); $i++) {
+                    if ($files['error'][$i] === UPLOAD_ERR_OK) {
+                        $fileName = basename($files['name'][$i]);
+                        $fileType = $files['type'][$i];
+                        $fileSize = $files['size'][$i];
+                        $uniqueName = uniqid() . '_' . $fileName;
+                        $targetPath = $uploadDir . $uniqueName;
+                        $dbPath = '/uploads/attachments/' . $uniqueName;
+
+                        if (move_uploaded_file($files['tmp_name'][$i], $targetPath)) {
+                            $stmtAttachment->execute([$fileName, $fileType, $fileSize, $dbPath, $messageId]);
+                        }
+                    }
+                }
+            }
+
             $this->pdo->commit();
 
             $this->sendJson([
@@ -235,7 +279,7 @@ class MailController {
     }
     
     public function updateMessage($id) {
-        $data = $this->getJsonInput();
+        $data = $this->getInput();
         $userId = isset($data['user_id']) ? intval($data['user_id']) : 3;
 
         // Updates: isRead, isStarred, etc.
