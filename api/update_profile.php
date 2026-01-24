@@ -27,14 +27,14 @@ if($current_email && $first_name && $last_name && $new_email && $current_passwor
         if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] === UPLOAD_ERR_OK) {
             $file_tmp = $_FILES['profile_pic']['tmp_name'];
             $file_name = time() . '_' . basename($_FILES['profile_pic']['name']);
-            $target_dir = "uploads/";
+            $target_dir = "../uploads/profiles/";
             $target_file = $target_dir . $file_name;
 
             // Simple validation
             $check = getimagesize($file_tmp);
             if ($check !== false) {
                 if (move_uploaded_file($file_tmp, $target_file)) {
-                    $profile_pic_path = $target_file;
+                    $profile_pic_path = '/uploads/profiles/' . $file_name;
                 } else {
                     echo json_encode(["status" => "error", "message" => "Erreur lors du téléchargement de l'image."]);
                     exit;

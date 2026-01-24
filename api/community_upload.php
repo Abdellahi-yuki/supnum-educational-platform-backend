@@ -27,7 +27,7 @@ if (!$uploadId || $chunkIndex === null || !$totalChunks || !$fileName || !$file)
     exit;
 }
 
-$tempDir = __DIR__ . '/uploads/temp';
+$tempDir = __DIR__ . '/../uploads/community/temp';
 if (!file_exists($tempDir)) {
     if (!mkdir($tempDir, 0777, true)) {
         http_response_code(500);
@@ -59,7 +59,7 @@ fclose($handle);
 
 // Check if complete
 if ($chunkIndex + 1 >= $totalChunks) {
-    $finalDir = __DIR__ . '/uploads';
+    $finalDir = __DIR__ . '/../uploads/community';
     if (!file_exists($finalDir)) {
         if (!mkdir($finalDir, 0777, true)) {
             http_response_code(500);
@@ -72,7 +72,7 @@ if ($chunkIndex + 1 >= $totalChunks) {
     $finalPath = $finalDir . '/' . $safeFileName;
 
     if (rename($tempFilePath, $finalPath)) {
-        $mediaUrl = '/uploads/' . $safeFileName;
+        $mediaUrl = '/uploads/community/' . $safeFileName;
         
         $mime = mime_content_type($finalPath);
         $type = 'file';
