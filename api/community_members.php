@@ -6,7 +6,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     try {
         // Get all users with their activity status
-        $sql = "SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.profile_path, u.created_at,
+        $sql = "SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.profile_pic as profile_path, u.created_at,
                 (SELECT COUNT(*) FROM community_messages WHERE user_id = u.id) as message_count,
                 (SELECT MAX(created_at) FROM community_messages WHERE user_id = u.id) as last_activity,
                 CASE 
@@ -27,6 +27,7 @@ if ($method === 'GET') {
             return [
                 'id' => $member['id'],
                 'username' => $member['username'] ?? ($member['first_name'] . ' ' . $member['last_name']),
+                'full_name' => trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')),
                 'email' => $member['email'],
                 'first_name' => $member['first_name'],
                 'last_name' => $member['last_name'],

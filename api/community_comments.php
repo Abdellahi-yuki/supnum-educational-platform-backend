@@ -30,12 +30,21 @@ if ($method === 'POST') {
             $notifStmt->execute([$ownerId, $userId, $messageId]);
         }
 
+        // Fetch user details for response
+        $userStmt = $conn->prepare("SELECT username, first_name, last_name, email, profile_pic as profile_path FROM users WHERE id = ?");
+        $userStmt->execute([$userId]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+
         echo json_encode([
             'id' => $commentId,
             'message_id' => $messageId,
             'user_id' => $userId,
             'content' => $content,
-            'created_at' => date('Y-m-d H:i:s')
+            'created_at' => date('Y-m-d H:i:s'),
+            'username' => $user['username'] ?? (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
+            'full_name' => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
+            'email' => $user['email'] ?? '',
+            'profile_path' => $user['profile_path'] ?? null
         ]);
     } catch (PDOException $e) {
         http_response_code(500);

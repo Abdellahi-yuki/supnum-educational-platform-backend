@@ -21,7 +21,7 @@ if ($method === 'GET') {
     }
 
     try {
-        $sql = "SELECT DISTINCT m.*, u.username, u.email, u.first_name, u.last_name, u.profile_path, u.role,
+        $sql = "SELECT DISTINCT m.*, u.username, u.email, u.first_name, u.last_name, u.profile_pic as profile_path, u.role,
                 (CASE WHEN am.id IS NOT NULL THEN 1 ELSE 0 END) as is_archived,
                 r.content as reply_content, ru.username as reply_username
                 FROM community_messages m 
@@ -62,7 +62,7 @@ if ($method === 'GET') {
         $messageIds = array_column($messagesRaw, 'id');
         $inQuery = implode(',', array_fill(0, count($messageIds), '?'));
         
-        $commentSql = "SELECT c.*, u.username, u.email, u.first_name, u.last_name, u.profile_path
+        $commentSql = "SELECT c.*, u.username, u.email, u.first_name, u.last_name, u.profile_pic as profile_path
                        FROM community_comments c 
                        JOIN users u ON c.user_id = u.id 
                        WHERE c.message_id IN ($inQuery)
@@ -85,6 +85,7 @@ if ($method === 'GET') {
                 'content' => $c['content'],
                 'created_at' => $c['created_at'],
                 'username' => $c['username'] ?? ($c['first_name'] . ' ' . $c['last_name']),
+                'full_name' => trim(($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? '')),
                 'email' => $c['email'] ?? null,
                 'profile_path' => $c['profile_path']
             ];
@@ -99,6 +100,7 @@ if ($method === 'GET') {
                 'media_url' => $msg['media_url'],
                 'created_at' => $msg['created_at'],
                 'username' => $msg['username'] ?? ($msg['first_name'] . ' ' . $msg['last_name']),
+                'full_name' => trim(($msg['first_name'] ?? '') . ' ' . ($msg['last_name'] ?? '')),
                 'email' => $msg['email'] ?? null,
                 'profile_path' => $msg['profile_path'],
                 'role' => $msg['role'],
@@ -147,7 +149,7 @@ if ($method === 'GET') {
             }
         }
 
-        $userStmt = $conn->prepare("SELECT username, first_name, last_name, email, profile_path, role FROM users WHERE id = ?");
+        $userStmt = $conn->prepare("SELECT username, first_name, last_name, email, profile_pic as profile_path, role FROM users WHERE id = ?");
         $userStmt->execute([$userId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -179,6 +181,7 @@ if ($method === 'GET') {
             'media_url' => $mediaUrl,
             'created_at' => date('Y-m-d H:i:s'),
             'username' => $user['username'] ?? (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
+            'full_name' => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
             'email' => $user['email'] ?? '',
             'profile_path' => $user['profile_path'] ?? null,
             'role' => $user['role'] ?? 'Etudiant',

@@ -14,7 +14,7 @@ if ($method === 'GET') {
     
     try {
         // Get user profile information
-        $userSql = "SELECT id, username, email, first_name, last_name, profile_path, created_at,
+        $userSql = "SELECT id, username, email, first_name, last_name, profile_pic as profile_path, created_at,
                     (SELECT COUNT(*) FROM community_messages WHERE user_id = ?) as message_count,
                     (SELECT COUNT(*) FROM community_comments WHERE user_id = ?) as comment_count
                     FROM users WHERE id = ?";
